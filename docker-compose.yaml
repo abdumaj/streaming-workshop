@@ -1,5 +1,6 @@
 services:
   redpanda:
+    network_mode: host
     image: redpandadata/redpanda:v25.3.9
     command:
       - redpanda
@@ -14,7 +15,7 @@ services:
       - --kafka-addr
       - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
       - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - PLAINTEXT://localhost:29092,OUTSIDE://localhost:9092
       - --pandaproxy-addr
       - PLAINTEXT://0.0.0.0:28082,OUTSIDE://0.0.0.0:8082
       - --advertise-pandaproxy-addr
@@ -22,9 +23,43 @@ services:
       - --rpc-addr
       - 0.0.0.0:33145
       - --advertise-rpc-addr
-      - redpanda:33145
-    ports:
-      - 8082:8082
-      - 9092:9092
-      - 28082:28082
-      - 29092:29092
+      - localhost:33145
+  postgres:
+    network_mode: host
+    image: postgres:18
+    restart: on-failure
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+  jobmanager:
+    network_mode: host
+    build:
+      context: .
+      dockerfile: ./Dockerfile.flink
+    image: pyflink-workshop
+    pull_policy: never
+    volumes:
+      - ./:/opt/flink/usrlib
+      - ./src/:/opt/src
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: localhost
+        rest.port: 18081
+        jobmanager.memory.process.size: 1600m
+  taskmanager:
+    network_mode: host
+    image: pyflink-workshop
+    pull_policy: never
+    depends_on:
+      - jobmanager
+    volumes:
+      - ./:/opt/flink/usrlib
+      - ./src/:/opt/src
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: localhost
